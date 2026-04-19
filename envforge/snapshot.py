@@ -1,71 +1,69 @@
-"""Core snapshot functionality for capturing and storing env var snapshots."""
-
+"""Snapshot storage and retrieval."""
 import json
 import os
-import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-SNAPSHOT_DIR = Path.home() / ".envforge" / "snapshots"
-
-
-def get_snapshot_path(name: str) -> Path:
-    return SNAPSHOT_DIR / f"{name}.json"
+DEFAULT_SNAPSHOT_DIR = Path.home() / ".envforge" / "snapshots"
 
 
-def save_snapshot(name: str, env: dict, description: Optional[str] = None) -> Path:
-    """Save current environment variables as a named snapshot."""
-    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    snapshot = {
+def get_snapshot_path(name: str, snapshot_dir: Path = None) -> Path:
+    base = snapshot_dir or DEFAULT_SNAPSHOT_DIR
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"{name}.json"
+
+
+def save_snapshot(
+    name: str,
+    env_vars: Dict[str, str],
+    snapshot_dir: Path = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Path:
+    path = get_snapshot_path(name, snapshot_dir)
+    existing = {}
+    if path.exists():
+        with open(path) as f:
+            existing = json.load(f)
+    data = {
         "name": name,
-        "description": description or "",
-        "created_at": time.time(),
-        "env": env,
+        "created_at": existing.get("created_at", datetime.now(timezone.utc).isoformat()),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "vars": env_vars,
+        "tags": existing.get("tags", []),
     }
-    path = get_snapshot_path(name)
+    if extra:
+        data.update(extra)
     with open(path, "w") as f:
-        json.dump(snapshot, f, indent=2)
+        json.dump(data, f, indent=2)
     return path
 
 
-def load_snapshot(name: str) -> dict:
-    """Load a snapshot by name. Raises FileNotFoundError if not found."""
-    path = get_snapshot_path(name)
+def load_snapshot(name: str, snapshot_dir: Path = None) -> Dict[str, Any]:
+    path = get_snapshot_path(name, snapshot_dir)
     if not path.exists():
         raise FileNotFoundError(f"Snapshot '{name}' not found.")
     with open(path) as f:
         return json.load(f)
 
 
-def list_snapshots() -> list[dict]:
-    """Return metadata for all saved snapshots."""
-    if not SNAPSHOT_DIR.exists():
+def list_snapshots(snapshot_dir: Path = None) -> List[Dict[str, Any]]:
+    base = snapshot_dir or DEFAULT_SNAPSHOT_DIR
+    if not base.exists():
         return []
-    snapshots = []
-    for p in sorted(SNAPSHOT_DIR.glob("*.json")):
-        with open(p) as f:
-            data = json.load(f)
-        snapshots.append({
-            "name": data["name"],
-            "description": data.get("description", ""),
-            "created_at": data["created_at"],
-            "var_count": len(data["env"]),
-        })
-    return snapshots
+    results = []
+    for p in sorted(base.glob("*.json")):
+        try:
+            with open(p) as f:
+                data = json.load(f)
+            results.append(data)
+        except Exception:
+            continue
+    return results
 
 
-def delete_snapshot(name: str) -> bool:
-    """Delete a snapshot by name. Returns True if deleted."""
-    path = get_snapshot_path(name)
+def delete_snapshot(name: str, snapshot_dir: Path = None) -> None:
+    path = get_snapshot_path(name, snapshot_dir)
     if not path.exists():
-        return False
+        raise FileNotFoundError(f"Snapshot '{name}' not found.")
     path.unlink()
-    return True
-
-
-def capture_env(keys: Optional[list[str]] = None) -> dict:
-    """Capture current env vars, optionally filtering to specific keys."""
-    env = dict(os.environ)
-    if keys:
-        env = {k: v for k, v in env.items() if k in keys}
-    return env
