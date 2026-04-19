@@ -1,73 +1,71 @@
-"""CLI entry point for envforge using Click."""
+"""CLI entry point for envforge."""
 
-import time
-
+import os
 import click
-
-from envforge.snapshot import (
-    capture_env,
-    delete_snapshot,
-    list_snapshots,
-    load_snapshot,
-    save_snapshot,
-)
+from envforge.snapshot import save_snapshot, load_snapshot, list_snapshots, delete_snapshot
+from envforge.diff import diff_snapshots, diff_snapshot_with_env
 
 
 @click.group()
 def cli():
     """envforge — snapshot and restore local environment variables."""
+    pass
 
 
 @cli.command("save")
 @click.argument("name")
-@click.option("-d", "--description", default="", help="Optional description.")
-@click.option("-k", "--keys", multiple=True, help="Specific keys to capture.")
-def save_cmd(name, description, keys):
-    """Save current environment as a snapshot."""
-    env = capture_env(list(keys) if keys else None)
-    path = save_snapshot(name, env, description)
-    click.echo(f"✓ Saved snapshot '{name}' with {len(env)} variables → {path}")
+@click.option("--project", default=None, help="Project tag for the snapshot.")
+def save_cmd(name, project):
+    """Save current environment as a named snapshot."""
+    env_vars = dict(os.environ)
+    save_snapshot(name, env_vars, project=project)
+    click.echo(f"Snapshot '{name}' saved ({len(env_vars)} variables).")
 
 
 @cli.command("list")
-def list_cmd():
+@click.option("--project", default=None, help="Filter by project tag.")
+def list_cmd(project):
     """List all saved snapshots."""
-    snapshots = list_snapshots()
+    snapshots = list_snapshots(project=project)
     if not snapshots:
         click.echo("No snapshots found.")
         return
     for s in snapshots:
-        ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(s["created_at"]))
-        desc = f" — {s['description']}" if s["description"] else ""
-        click.echo(f"  {s['name']:20s} {ts}  ({s['var_count']} vars){desc}")
+        tag = f"  [{s['project']}]" if s.get("project") else ""
+        click.echo(f"  {s['name']}  ({s['created_at']}){tag}")
 
 
 @cli.command("show")
 @click.argument("name")
 def show_cmd(name):
     """Show variables stored in a snapshot."""
-    try:
-        snap = load_snapshot(name)
-    except FileNotFoundError as e:
-        raise click.ClickException(str(e))
-    click.echo(f"Snapshot: {snap['name']}")
-    if snap.get("description"):
-        click.echo(f"Description: {snap['description']}")
-    click.echo("Variables:")
-    for k, v in sorted(snap["env"].items()):
-        click.echo(f"  {k}={v}")
+    snap = load_snapshot(name)
+    for key, val in sorted(snap["vars"].items()):
+        click.echo(f"{key}={val}")
 
 
 @cli.command("delete")
 @click.argument("name")
-@click.confirmation_option(prompt="Are you sure you want to delete this snapshot?")
+@click.confirmation_option(prompt=f"Are you sure you want to delete this snapshot?")
 def delete_cmd(name):
-    """Delete a snapshot."""
-    if delete_snapshot(name):
-        click.echo(f"✓ Deleted snapshot '{name}'.")
+    """Delete a named snapshot."""
+    delete_snapshot(name)
+    click.echo(f"Snapshot '{name}' deleted.")
+
+
+@cli.command("diff")
+@click.argument("name_a")
+@click.argument("name_b", required=False, default=None)
+def diff_cmd(name_a, name_b):
+    """Diff two snapshots, or a snapshot against the current environment."""
+    snap_a = load_snapshot(name_a)
+    if name_b:
+        snap_b = load_snapshot(name_b)
+        result = diff_snapshots(snap_a, snap_b)
+        label = f"'{name_a}' vs '{name_b}'"
     else:
-        raise click.ClickException(f"Snapshot '{name}' not found.")
+        result = diff_snapshot_with_env(snap_a)
+        label = f"'{name_a}' vs current environment"
 
-
-if __name__ == "__main__":
-    cli()
+    click.echo(f"Diff {label}:")
+    click.echo(result.summary())
