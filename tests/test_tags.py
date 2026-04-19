@@ -55,3 +55,13 @@ def test_list_by_tag_empty(tmp_snapshot_dir):
 def test_add_tag_missing_snapshot(tmp_snapshot_dir):
     with pytest.raises(FileNotFoundError):
         add_tag("ghost", "tag", tmp_snapshot_dir)
+
+
+def test_get_tags_multiple(tmp_snapshot_dir):
+    """Snapshot can hold multiple distinct tags."""
+    save_snapshot("s1", {"A": "1"}, tmp_snapshot_dir)
+    add_tag("s1", "prod", tmp_snapshot_dir)
+    add_tag("s1", "stable", tmp_snapshot_dir)
+    add_tag("s1", "v2", tmp_snapshot_dir)
+    tags = get_tags("s1", tmp_snapshot_dir)
+    assert set(tags) == {"prod", "stable", "v2"}
