@@ -18,7 +18,10 @@ def _load_audit(snapshot_dir: str) -> List[Dict[str, Any]]:
     if not path.exists():
         return []
     with open(path) as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return []
 
 
 def _save_audit(snapshot_dir: str, entries: List[Dict[str, Any]]) -> None:
@@ -56,6 +59,23 @@ def get_audit_log(
     if snapshot_name:
         entries = [e for e in entries if e["snapshot"] == snapshot_name]
     return entries
+
+
+def get_audit_summary(snapshot_dir: str) -> Dict[str, Dict[str, int]]:
+    """Return a summary of action counts per snapshot.
+
+    Returns a dict mapping snapshot name to a dict of action -> count.
+    Useful for quickly seeing how many times each snapshot was saved,
+    loaded, deleted, etc.
+    """
+    entries = _load_audit(snapshot_dir)
+    summary: Dict[str, Dict[str, int]] = {}
+    for entry in entries:
+        name = entry.get("snapshot", "unknown")
+        action = entry.get("action", "unknown")
+        summary.setdefault(name, {})
+        summary[name][action] = summary[name].get(action, 0) + 1
+    return summary
 
 
 def clear_audit_log(snapshot_dir: str) -> None:
