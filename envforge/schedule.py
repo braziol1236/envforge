@@ -25,7 +25,13 @@ def _save_schedules(snapshot_dir: Path, data: dict[str, Any]) -> None:
 
 
 def set_schedule(snapshot_dir: Path, name: str, cron: str, label: str = "") -> None:
-    """Attach a cron expression to a named snapshot slot."""
+    """Attach a cron expression to a named snapshot slot.
+
+    Raises FileNotFoundError if the snapshot does not exist.
+    Raises ValueError if *cron* is an empty string.
+    """
+    if not cron.strip():
+        raise ValueError("cron expression must not be empty.")
     snap_path = get_snapshot_path(snapshot_dir, name)
     if not snap_path.exists():
         raise FileNotFoundError(f"Snapshot '{name}' not found.")
