@@ -54,8 +54,12 @@ def show_cmd(name, base):
 @template_cmd.command("delete")
 @click.argument("name")
 @click.option("--dir", "base", default=None)
-def delete_cmd(name, base):
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt")
+def delete_cmd(name, base, yes):
+    """Delete a template."""
     base_path = Path(base) if base else None
+    if not yes:
+        click.confirm(f"Delete template '{name}'?", abort=True)
     delete_template(name, base_path)
     click.echo(f"Template '{name}' deleted.")
 
