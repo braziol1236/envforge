@@ -36,6 +36,7 @@ def to_fish(env: Dict[str, str]) -> str:
 
 def export_snapshot(env: Dict[str, str], fmt: str) -> str:
     """Export a snapshot dict to the given format string."""
+    fmt = fmt.lower().strip()
     if fmt == "bash":
         return to_bash(env)
     elif fmt == "dotenv":
