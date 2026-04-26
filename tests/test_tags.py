@@ -65,3 +65,15 @@ def test_get_tags_multiple(tmp_snapshot_dir):
     add_tag("s1", "v2", tmp_snapshot_dir)
     tags = get_tags("s1", tmp_snapshot_dir)
     assert set(tags) == {"prod", "stable", "v2"}
+
+
+def test_remove_tag_missing_snapshot(tmp_snapshot_dir):
+    """Removing a tag from a non-existent snapshot should raise FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        remove_tag("ghost", "prod", tmp_snapshot_dir)
+
+
+def test_get_tags_missing_snapshot(tmp_snapshot_dir):
+    """Getting tags for a non-existent snapshot should raise FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        get_tags("ghost", tmp_snapshot_dir)
